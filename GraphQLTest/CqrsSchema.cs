@@ -4,8 +4,8 @@ using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using GraphQL.Resolvers;
 using GraphQL.Types;
-using GraphQLParser.AST;
 using StandardSharp.Common.Attributes;
 using StandardSharp.Common.Commands;
 using StandardSharp.Common.QueryHandler;
@@ -59,17 +59,17 @@ namespace GraphQLTest
                 //
 
                 var inputTypeName = commandType.Name; // + "Input";
-                var inputType = FindType(inputTypeName);
+                var inputGqlType = FindType(inputTypeName);
                 
-                if (inputType == null)
+                if (inputGqlType == null)
                 {
                     var inputObjectType = typeof(InputObjectGraphType<>).MakeGenericType(commandType);
                     
-                    inputType = (IGraphType)Activator.CreateInstance(inputObjectType);
+                    inputGqlType = (IGraphType)Activator.CreateInstance(inputObjectType);
 
-                    inputType.Name = inputTypeName;
+                    inputGqlType.Name = inputTypeName;
                     
-                    RegisterType(inputType);
+                    RegisterType(inputGqlType);
                 }
                 
                 var resultTypeName = resultType.Name;
@@ -86,7 +86,7 @@ namespace GraphQLTest
                 }
 
 
-                var queryArgument = new QueryArgument(inputType);
+                var queryArgument = new QueryArgument(inputGqlType);
                 queryArgument.Name = "command";
                 
                 var commandQueryParameters = new List<QueryArgument>()
@@ -102,6 +102,7 @@ namespace GraphQLTest
                     {
                         Type = resultGqlType.GetType(), //.ToGraphType(),
                         ResolvedType = resultGqlType,
+                        Resolver = new CommandResolver(_container, commandHandlerType, commandType),
                         Name = CamelCase(mutationName),
                         Description = descriptionAttribute?.Description,
                         Arguments = new QueryArguments(commandQueryParameters)
@@ -130,6 +131,31 @@ namespace GraphQLTest
         private static string CamelCase(string s)
         {
             return s.Substring(0, 1).ToLower() + s.Substring(1);
+        }
+        
+        public class CommandResolver : IFieldResolver
+        {
+            private readonly Container _container;
+            private readonly Type _commandHandlerType;
+            private readonly Type _commandType;
+
+            public CommandResolver(Container container, Type commandHandlerType, Type commandType)
+            {
+                _container = container;
+                _commandHandlerType = commandHandlerType;
+                _commandType = commandType;
+            }
+
+            public object Resolve(ResolveFieldContext context)
+            {
+                var commandHandler = _container.GetInstance(_commandHandlerType);
+                var command = context.GetArgument("command", _commandType);
+
+                var handleMethodInfo =
+                    _commandHandlerType.GetMethod("Handle", BindingFlags.Instance | BindingFlags.Public);
+
+                return handleMethodInfo.Invoke(commandHandler, new[] { command });
+            }
         }
     }
 }
