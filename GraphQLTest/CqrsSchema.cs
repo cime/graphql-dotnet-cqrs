@@ -79,7 +79,7 @@ namespace GraphQLTest
                 {
                     var returnObjectType = typeof(AutoRegisteringObjectGraphType<>).MakeGenericType(resultType);
                     
-                    resultGqlType = (IGraphType)Activator.CreateInstance(returnObjectType);
+                    resultGqlType = (IGraphType)Activator.CreateInstance(returnObjectType, null);
                     resultGqlType.Name = resultTypeName;
                     
                     //RegisterType(resultGqlType);
