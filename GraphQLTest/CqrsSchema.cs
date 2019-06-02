@@ -67,49 +67,32 @@ namespace GraphQLTest
                 // Each command can be resolved using: var result = (new "commandHandlerType"()).Handle("command instance");
                 //
 
-                var inputTypeName = commandType.Name; // + "Input";
-                var inputGqlType = FindType(inputTypeName);
-                
-                if (inputGqlType == null)
+                var inputTypeName = commandType.Name;
+                var inputObjectType = typeof(InputObjectGraphType<>).MakeGenericType(commandType);
+                var inputGqlType = (IInputObjectGraphType)Activator.CreateInstance(inputObjectType);
+
+                inputGqlType.Name = inputTypeName;
+
+                var addFieldMethod = inputGqlType.GetType().GetMethod("AddField");
+                var properties = commandType.GetProperties(BindingFlags.Instance | BindingFlags.Public);
+
+                foreach (var propertyInfo in properties)
                 {
-                    var inputObjectType = typeof(InputObjectGraphType<>).MakeGenericType(commandType);
-                    
-                    inputGqlType = (IInputObjectGraphType)Activator.CreateInstance(inputObjectType);
-
-                    inputGqlType.Name = inputTypeName;
-
-                    var addFieldMethod = inputGqlType.GetType().GetMethod("AddField");
-                    var properties = commandType.GetProperties(BindingFlags.Instance | BindingFlags.Public);
-
-                    foreach (var propertyInfo in properties)
+                    addFieldMethod.Invoke(inputGqlType, new[]
                     {
-                        addFieldMethod.Invoke(inputGqlType, new[]
+                        new FieldType()
                         {
-                            new FieldType()
-                            {
-                                Name = CamelCase(propertyInfo.Name),
-                                Type = propertyInfo.PropertyType.GetGraphTypeFromType()
-                            }
-                        });
-                    }
-                    
-                    //RegisterType(inputGqlType);
+                            Name = CamelCase(propertyInfo.Name),
+                            Type = propertyInfo.PropertyType.GetGraphTypeFromType()
+                        }
+                    });
                 }
                 
                 var resultTypeName = resultType.Name;
-                var resultGqlType = FindType(resultTypeName);
+                var returnObjectType = typeof(AutoRegisteringObjectGraphType<>).MakeGenericType(resultType);
+                var resultGqlType = (IGraphType)Activator.CreateInstance(returnObjectType, null);
+                resultGqlType.Name = resultTypeName;
                 
-                if (resultGqlType == null)
-                {
-                    var returnObjectType = typeof(AutoRegisteringObjectGraphType<>).MakeGenericType(resultType);
-                    
-                    resultGqlType = (IGraphType)Activator.CreateInstance(returnObjectType, null);
-                    resultGqlType.Name = resultTypeName;
-                    
-                    //RegisterType(resultGqlType);
-                }
-
-
                 var queryArgument = new QueryArgument(inputGqlType);
                 queryArgument.Name = "command";
                 
