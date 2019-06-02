@@ -69,7 +69,7 @@ namespace GraphQLTest
 
                     inputGqlType.Name = inputTypeName;
                     
-                    RegisterType(inputGqlType);
+                    //RegisterType(inputGqlType);
                 }
                 
                 var resultTypeName = resultType.Name;
@@ -77,12 +77,12 @@ namespace GraphQLTest
                 
                 if (resultGqlType == null)
                 {
-                    var returnObjectType = typeof(ObjectGraphType<>).MakeGenericType(resultType);
+                    var returnObjectType = typeof(AutoRegisteringObjectGraphType<>).MakeGenericType(resultType);
                     
                     resultGqlType = (IGraphType)Activator.CreateInstance(returnObjectType);
                     resultGqlType.Name = resultTypeName;
                     
-                    RegisterType(resultGqlType);
+                    //RegisterType(resultGqlType);
                 }
 
 
@@ -100,7 +100,6 @@ namespace GraphQLTest
                 {
                     var type = new FieldType
                     {
-                        Type = resultGqlType.GetType(), //.ToGraphType(),
                         ResolvedType = resultGqlType,
                         Resolver = new CommandResolver(_container, commandHandlerType, commandType),
                         Name = CamelCase(mutationName),
