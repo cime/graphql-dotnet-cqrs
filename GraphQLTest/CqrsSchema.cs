@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using GraphQL;
 using GraphQL.Resolvers;
 using GraphQL.Types;
 using StandardSharp.Common.Attributes;
@@ -19,10 +20,18 @@ namespace GraphQLTest
 
         public CqrsSchema(Container container)
         {
-            Query = new ObjectGraphType();
-            Mutation = new ObjectGraphType();
-            
             _container = container;
+
+            Query = new ObjectGraphType()
+            {
+                Name = "Query"
+            };
+            Mutation = new ObjectGraphType()
+            {
+                Name = "Mutation"
+            };
+            //Mutation = new TestMutation();
+            
             RegisterCommands();
             RegisterQueries();
         }
@@ -65,9 +74,24 @@ namespace GraphQLTest
                 {
                     var inputObjectType = typeof(InputObjectGraphType<>).MakeGenericType(commandType);
                     
-                    inputGqlType = (IGraphType)Activator.CreateInstance(inputObjectType);
+                    inputGqlType = (IInputObjectGraphType)Activator.CreateInstance(inputObjectType);
 
                     inputGqlType.Name = inputTypeName;
+
+                    var addFieldMethod = inputGqlType.GetType().GetMethod("AddField");
+                    var properties = commandType.GetProperties(BindingFlags.Instance | BindingFlags.Public);
+
+                    foreach (var propertyInfo in properties)
+                    {
+                        addFieldMethod.Invoke(inputGqlType, new[]
+                        {
+                            new FieldType()
+                            {
+                                Name = CamelCase(propertyInfo.Name),
+                                Type = propertyInfo.PropertyType.GetGraphTypeFromType()
+                            }
+                        });
+                    }
                     
                     //RegisterType(inputGqlType);
                 }
@@ -94,7 +118,7 @@ namespace GraphQLTest
                     queryArgument
                 };
 
-                var mutationName = CamelCase(new Regex("CommandHandler$").Replace(commandHandlerType.Name, ""));
+                var mutationName = new Regex("Command$").Replace(commandType.Name, "");
 
                 if (!Mutation.HasField(mutationName))
                 {
