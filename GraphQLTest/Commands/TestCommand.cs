@@ -19,7 +19,11 @@ namespace GraphQLTest.Commands
     {
         public TestCommandResult Handle(TestCommand command)
         {
-            return  new TestCommandResult();
+            return  new TestCommandResult()
+            {
+                Id = command.Id,
+                Name =  $"Test {command.Id}"
+            };
         }
     }
 }

@@ -7,6 +7,8 @@ using System.Text.RegularExpressions;
 using GraphQL;
 using GraphQL.Resolvers;
 using GraphQL.Types;
+using Newtonsoft.Json;
+using SimpleInjector.Lifestyles;
 using StandardSharp.Common.Attributes;
 using StandardSharp.Common.Commands;
 using StandardSharp.Common.QueryHandler;
@@ -30,8 +32,7 @@ namespace GraphQLTest
             {
                 Name = "Mutation"
             };
-            //Mutation = new TestMutation();
-            
+
             RegisterCommands();
             RegisterQueries();
         }
@@ -154,13 +155,50 @@ namespace GraphQLTest
 
             public object Resolve(ResolveFieldContext context)
             {
-                var commandHandler = _container.GetInstance(_commandHandlerType);
-                var command = context.GetArgument("command", _commandType);
+                using (AsyncScopedLifestyle.BeginScope(_container))
+                {
+                    var commandHandler = _container.GetInstance(_commandHandlerType);
+                    // TODO: find a beeter way to deserialize variable command
+                    var variableValue = context.Variables.SingleOrDefault(x => x.Name == "command")?.Value;
+                    var command =
+                        JsonConvert.DeserializeObject(JsonConvert.SerializeObject(variableValue), _commandType);
 
-                var handleMethodInfo =
-                    _commandHandlerType.GetMethod("Handle", BindingFlags.Instance | BindingFlags.Public);
+                    var handleMethodInfo =
+                        _commandHandlerType.GetMethod("Handle", BindingFlags.Instance | BindingFlags.Public);
 
-                return handleMethodInfo.Invoke(commandHandler, new[] { command });
+                    return handleMethodInfo.Invoke(commandHandler, new[] { command });
+                }
+            }
+        }
+        
+        public class QueryResolver : IFieldResolver
+        {
+            private readonly Container _container;
+            private readonly Type _queryHandlerType;
+            private readonly Type _queryType;
+
+            public QueryResolver(Container container, Type queryHandlerType, Type queryType)
+            {
+                _container = container;
+                _queryHandlerType = queryHandlerType;
+                _queryType = queryType;
+            }
+
+            public object Resolve(ResolveFieldContext context)
+            {
+                using (AsyncScopedLifestyle.BeginScope(_container))
+                {
+                    var queryHandler = _container.GetInstance(_queryHandlerType);
+                    // TODO: find a beeter way to deserialize variable query
+                    var variableValue = context.Variables.SingleOrDefault(x => x.Name == "query")?.Value;
+                    var query =
+                        JsonConvert.DeserializeObject(JsonConvert.SerializeObject(variableValue), _queryType);
+
+                    var handleMethodInfo =
+                        _queryHandlerType.GetMethod("Handle", BindingFlags.Instance | BindingFlags.Public);
+
+                    return handleMethodInfo.Invoke(queryHandler, new[] { query });
+                }
             }
         }
     }
